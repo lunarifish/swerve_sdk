@@ -1,0 +1,3 @@
+[submodule "ros2/src/trac_ik"]
+	path = ros2/src/trac_ik
+	url = https://github.com/ravnicas/trac_ik.git

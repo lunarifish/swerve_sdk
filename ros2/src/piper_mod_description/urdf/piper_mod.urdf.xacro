@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper_mod">
+  <xacro:arg name="use_mock_hardware" default="false" />
+
+  <xacro:include filename="$(find piper_mod_description)/urdf/piper_mod_exported.urdf.xacro" />
+
+  <link name="piper_mod_base_link" />
+
+  <!-- 由于导出的1.1版urdf不符合ROS2 REP-105坐标系定义，所以增加一个 piper_mod_base_link->L1 变换加以修正 -->
+
+  <joint name="piper_mod_base_to_l1" type="fixed">
+    <parent link="piper_mod_base_link" />
+    <child link="L1" />
+    <origin xyz="0 0 0" rpy="1.57 0 1.57" />
+  </joint>
+
+
+</robot>

@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot
+  xmlns:xacro="http://www.ros.org/wiki/xacro"
+  name="piper_mod_exported">
+  <link
+    name="L1">
+    <inertial>
+      <origin
+        xyz="1.42870506427704E-18 0.0213742004629332 -4.00476291752035E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.224107576558084" />
+      <inertia
+        ixx="0.00013052816246447"
+        ixy="8.78452586537937E-21"
+        ixz="-2.50880676429361E-21"
+        iyy="0.00015738570512586"
+        iyz="2.25503476000853E-07"
+        izz="0.000130231725147389" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.796078431372549 0.823529411764706 0.937254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="L2">
+    <inertial>
+      <origin
+        xyz="-1.53318407569862E-17 0.0354679363404259 6.77658113217549E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.288788070268931" />
+      <inertia
+        ixx="0.000199704667959969"
+        ixy="-2.85013177072985E-20"
+        ixz="9.47047322671098E-21"
+        iyy="0.000170363569665349"
+        iyz="6.85023271019333E-07"
+        izz="0.000216138807129296" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.796078431372549 0.823529411764706 0.937254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J1"
+    type="revolute">
+    <origin
+      xyz="0 0.049 0"
+      rpy="0 0 0" />
+    <parent
+      link="L1" />
+    <child
+      link="L2" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="L3">
+    <inertial>
+      <origin
+        xyz="-2.5245E-17 0.006779 -0.1801"
+        rpy="0 0 0" />
+      <mass
+        value="1.3083" />
+      <inertia
+        ixx="0.011441"
+        ixy="1.0149E-18"
+        ixz="-8.0592E-19"
+        iyy="0.011526"
+        iyz="0.0010713"
+        izz="0.001254" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79608 0.82353 0.93725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J2"
+    type="revolute">
+    <origin
+      xyz="0 0.048 0"
+      rpy="0 0 0" />
+    <parent
+      link="L2" />
+    <child
+      link="L3" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="L4">
+    <inertial>
+      <origin
+        xyz="-6.82318276371718E-09 1.29246104471348E-05 0.0721613090993007"
+        rpy="0 0 0" />
+      <mass
+        value="0.576130071786513" />
+      <inertia
+        ixx="0.00202764359158527"
+        ixy="-1.10091459778094E-09"
+        ixz="2.37743125177792E-10"
+        iyy="0.00204632259848738"
+        iyz="-7.17192772685585E-07"
+        izz="0.000241380542099252" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.796078431372549 0.823529411764706 0.937254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J3"
+    type="revolute">
+    <origin
+      xyz="0 0.075 -0.32136"
+      rpy="0 0 0" />
+    <parent
+      link="L3" />
+    <child
+      link="L4" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="L5">
+    <inertial>
+      <origin
+        xyz="-6.64929469355364E-19 -3.85886975779737E-05 0.109704691300639"
+        rpy="0 0 0" />
+      <mass
+        value="0.570670669733141" />
+      <inertia
+        ixx="0.00230039684471546"
+        ixy="4.66354369263553E-22"
+        ixz="-4.29854132118342E-20"
+        iyy="0.00230606582041509"
+        iyz="-2.3938814108613E-06"
+        izz="0.000223308724269993" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.796078431372549 0.823529411764706 0.937254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J4"
+    type="revolute">
+    <origin
+      xyz="0 0 0.171"
+      rpy="0 0 0" />
+    <parent
+      link="L4" />
+    <child
+      link="L5" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+  <link
+    name="L6">
+    <inertial>
+      <origin
+        xyz="1.6857E-17 0.0094661 0.058234"
+        rpy="0 0 0" />
+      <mass
+        value="0.21626" />
+      <inertia
+        ixx="0.00023354"
+        ixy="-3.014E-20"
+        ixz="-6.4521E-21"
+        iyy="0.00023847"
+        iyz="-6.7967E-06"
+        izz="0.00013004" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L6.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79608 0.82353 0.93725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://piper_mod_description/meshes/L6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J5"
+    type="revolute">
+    <origin
+      xyz="0 0 0.1885"
+      rpy="0 0 0" />
+    <parent
+      link="L5" />
+    <child
+      link="L6" />
+    <axis
+      xyz="-1 0 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="0"
+      velocity="0" />
+  </joint>
+</robot>
