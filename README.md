@@ -13,7 +13,7 @@
 
 - [`configurator/`](configurator/): USBCDC上位机源码
 
-- [`firmware/`](firmware/): STM32 MCU固件
+- [`stm32/`](stm32/): STM32 MCU固件
 
 - [`python/`](python/): Python SDK
 

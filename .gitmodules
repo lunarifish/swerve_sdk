@@ -1,3 +1,6 @@
 [submodule "ros2/src/trac_ik"]
 	path = ros2/src/trac_ik
 	url = https://github.com/ravnicas/trac_ik.git
+[submodule "stm32/libs/librm"]
+	path = stm32/libs/librm
+	url = https://github.com/XDU-IRobot/librm.git
