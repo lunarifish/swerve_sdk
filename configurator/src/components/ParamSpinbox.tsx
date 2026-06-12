@@ -1,16 +1,20 @@
-import { Slider, HStack, Text, NumberInput, Box, Separator } from '@chakra-ui/react'
+import { HStack, Text, NumberInput, Box, Separator } from '@chakra-ui/react'
 import type { ParamDef } from '../schemas/params'
 
-interface ParamSliderProps {
+interface ParamSpinboxProps {
   param: ParamDef
   value: number
   onChange: (key: string, value: number) => void
   disabled?: boolean
 }
 
-export function ParamSlider({ param, value, onChange, disabled }: ParamSliderProps) {
-  // 判断是否是 Kd 参数，在其前面加分隔线
-  const isKd = param.key === 'kd'
+/**
+ * 纯数字输入框组件（无滑块）。
+ * 对齐 MCU PersistableConfigV1 参数，通过 ↑↓ 箭头步进调节。
+ */
+export function ParamSpinbox({ param, value, onChange, disabled }: ParamSpinboxProps) {
+  // 在 Kd 参数前加分隔线，视觉上区分 Kp/Kd 与 vel/accel
+  const isKd = param.key === 'pd_kd'
 
   return (
     <Box>
@@ -27,26 +31,6 @@ export function ParamSlider({ param, value, onChange, disabled }: ParamSliderPro
           {param.label}
         </Text>
 
-        <Box flex={1}>
-          <Slider.Root
-            min={param.min}
-            max={param.max}
-            step={param.step}
-            value={[value]}
-            disabled={disabled}
-            onValueChange={(d) => onChange(param.key, d.value[0])}
-            size="sm"
-            colorPalette="brand"
-          >
-            <Slider.Control>
-              <Slider.Track bg="gray.100">
-                <Slider.Range />
-              </Slider.Track>
-              <Slider.Thumbs />
-            </Slider.Control>
-          </Slider.Root>
-        </Box>
-
         <NumberInput.Root
           min={param.min}
           max={param.max}
@@ -58,8 +42,7 @@ export function ParamSlider({ param, value, onChange, disabled }: ParamSliderPro
             if (!isNaN(v)) onChange(param.key, v)
           }}
           size="xs"
-          w="78px"
-          flexShrink={0}
+          flex={1}
         >
           <NumberInput.Input
             textAlign="right"

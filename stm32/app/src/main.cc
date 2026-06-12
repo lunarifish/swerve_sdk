@@ -91,7 +91,16 @@ extern "C" {
 [[noreturn]] void AppMain(void) {
   auto &shared = SharedResources::GetInstance();
 
-  arm = new Arm{ArmConfig::Make()};
+  auto arm_config = ArmConfig::Make();
+  const auto persist_storage = shared.flash_prefs.data();
+  if (Validate(persist_storage)) {
+    for (int i = 0; i < 5; i++) {
+      arm_config.pd_params[i] = {persist_storage.pd_kp[i], persist_storage.pd_kd[i]};
+      arm_config.trajectory_limiters[i].SetMaxVel(persist_storage.max_joint_vel[i]);
+      arm_config.trajectory_limiters[i].SetMaxAccel(persist_storage.max_joint_accel[i]);
+    }
+  }
+  arm = new Arm{arm_config};
   arm->Init();
 
   shared.press_sensor.Begin();

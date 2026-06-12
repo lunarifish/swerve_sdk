@@ -22,3 +22,5 @@ DS_Store
 # Environment files
 env.local
 env.*.local
+
+.agents

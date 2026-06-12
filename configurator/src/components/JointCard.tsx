@@ -1,6 +1,6 @@
 import { Card, Stack, Heading, Box } from '@chakra-ui/react'
 import type { JointSchema } from '../schemas/params'
-import { ParamSlider } from './ParamSlider'
+import { ParamSpinbox } from './ParamSpinbox'
 
 interface JointCardProps {
   schema: JointSchema
@@ -45,7 +45,7 @@ export function JointCard({ schema, values, onChange, disabled }: JointCardProps
       <Card.Body pt={1} pb={4} px={4}>
         <Stack gap={3}>
           {schema.params.map((param) => (
-            <ParamSlider
+            <ParamSpinbox
               key={param.key}
               param={param}
               value={values.get(param.key) ?? param.defaultValue}

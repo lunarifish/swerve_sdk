@@ -1,12 +1,8 @@
-import { HStack, NativeSelect, Button, Badge, Box } from '@chakra-ui/react'
+import { HStack, Button, Badge, Box } from '@chakra-ui/react'
 import type { ConnectionStatus } from '../hooks/useSerial'
 
 interface ConnectionBarProps {
   status: ConnectionStatus
-  ports: string[]
-  selectedPort: string
-  onSelectPort: (port: string) => void
-  onScan: () => void
   onConnect: () => void
   onDisconnect: () => void
 }
@@ -19,10 +15,6 @@ const STATUS_CONFIG: Record<ConnectionStatus, { label: string; colorPalette: str
 
 export function ConnectionBar({
   status,
-  ports,
-  selectedPort,
-  onSelectPort,
-  onScan,
   onConnect,
   onDisconnect,
 }: ConnectionBarProps) {
@@ -52,36 +44,6 @@ export function ConnectionBar({
         </HStack>
       </Badge>
 
-      <NativeSelect.Root
-        size="sm"
-        w="220px"
-        disabled={isConnected || isConnecting}
-      >
-        <NativeSelect.Field
-          value={selectedPort}
-          onChange={(e) => onSelectPort(e.target.value)}
-          borderRadius="md"
-          cursor={isConnected || isConnecting ? 'not-allowed' : 'pointer'}
-        >
-          {ports.length === 0 && <option value="">无可用串口 — 请点击「扫描」</option>}
-          {ports.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </NativeSelect.Field>
-      </NativeSelect.Root>
-
-      <Button
-        size="sm"
-        variant="outline"
-        colorPalette="gray"
-        onClick={onScan}
-        disabled={isConnected || isConnecting}
-      >
-        扫描
-      </Button>
-
       {isConnected ? (
         <Button size="sm" colorPalette="red" variant="solid" onClick={onDisconnect}>
           断开
@@ -92,7 +54,7 @@ export function ConnectionBar({
           colorPalette="brand"
           variant="solid"
           onClick={onConnect}
-          disabled={isConnecting || ports.length === 0}
+          disabled={isConnecting}
         >
           {isConnecting ? '连接中...' : '连接'}
         </Button>

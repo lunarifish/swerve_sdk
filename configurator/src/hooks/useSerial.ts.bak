@@ -1,0 +1,349 @@
+import { useState, useCallback, useRef } from 'react';
+import { ConfiguratorParser } from '../schemas/parser';
+import { CmdId, ReadRequestType } from '../schemas/protocol';
+import {
+  buildCmdFrame,
+  serializeConfig,
+  parseConfig,
+  buildConfigFromMap,
+  configToMap,
+} from '../schemas/serde';
+
+/** 串口连接状态 */
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected';
+
+/** 一条字节流记录 */
+export interface ByteLogEntry {
+  /** 毫秒时间戳 */
+  ts: number;
+  /** 原始字节 */
+  data: Uint8Array;
+}
+
+/** 日志级别 (对应 MCU LogString::LogLevel) */
+export enum LogLevel {
+  Debug = 0,
+  Info = 1,
+  Warning = 2,
+  Error = 3,
+}
+
+/** 一条文本日志 */
+export interface LogEntry {
+  /** 毫秒时间戳 */
+  ts: number;
+  /** 日志级别 */
+  level: LogLevel;
+  /** 来源: 'mcu' | 'host' */
+  source: 'mcu' | 'host';
+  /** 日志文本 */
+  text: string;
+}
+
+/** 串口固定参数 */
+const SERIAL_OPTIONS: SerialOptions = {
+  baudRate: 921600,
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'none',
+  flowControl: 'none',
+};
+
+/**
+ * Web Serial API 串口通信 hook
+ *
+ * 使用浏览器原生 Web Serial API (Chromium 内核浏览器支持)。
+ * 点击「连接」直接弹出浏览器串口选择器，选中即连接。
+ * 内置 TX/RX 字节流日志，用于 SerialTerminal 展示。
+ */
+export function useSerial() {
+  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const portRef = useRef<SerialPort | null>(null);
+  const writerRef = useRef<WritableStreamDefaultWriter<Uint8Array> | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const readLoopAbortRef = useRef<AbortController | null>(null);
+
+  // ---- 协议解析器 ----
+  const parserRef = useRef<ConfiguratorParser>(new ConfiguratorParser());
+  const seqRef = useRef<number>(0);
+  const [parserErrors, setParserErrors] = useState(0);
+
+  // ---- TX/RX 日志 ----
+  const [txLog, setTxLog] = useState<ByteLogEntry[]>([]);
+  const [rxLog, setRxLog] = useState<ByteLogEntry[]>([]);
+  const [txBytes, setTxBytes] = useState(0);
+  const [rxBytes, setRxBytes] = useState(0);
+
+  // ---- 文本日志 (MCU LogString + Host) ----
+  const [mcuLogs, setMcuLogs] = useState<LogEntry[]>([]);
+  const [hostLogs, setHostLogs] = useState<LogEntry[]>([]);
+
+  /** 写入帧并记录到 TX 日志 */
+  const writeFrame = useCallback(async (data: Uint8Array) => {
+    if (!writerRef.current) {
+      console.error('串口未连接');
+      return;
+    }
+    await writerRef.current.write(data);
+    setTxLog((prev) => [...prev.slice(-255), { ts: Date.now(), data }]);
+    setTxBytes((n) => n + data.length);
+  }, []);
+
+  /** 添加宿主侧日志 */
+  const addHostLog = useCallback((level: LogLevel, text: string) => {
+    const entry: LogEntry = { ts: Date.now(), level, source: 'host', text };
+    setHostLogs((prev) => [...prev.slice(-255), entry]);
+  }, []);
+
+  /** 背景读取循环 — 将每个接收字节喂入协议解析器 */
+  const startReadLoop = useCallback((port: SerialPort) => {
+    const abort = new AbortController();
+    readLoopAbortRef.current = abort;
+    const parser = parserRef.current;
+
+    (async () => {
+      while (port.readable && !abort.signal.aborted) {
+        try {
+          const reader = port.readable.getReader();
+          readerRef.current = reader;
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value && value.length > 0) {
+              setRxLog((prev) => [...prev.slice(-255), { ts: Date.now(), data: value }]);
+              setRxBytes((n) => n + value.length);
+              // 喂入协议解析器
+              for (let i = 0; i < value.length; i++) {
+                parser.feed(value[i]);
+              }
+              // 同步错误计数
+              setParserErrors(parser.errorCount);
+            }
+          }
+          reader.releaseLock();
+        } catch {
+          // 端口断开或读取错误，退出循环
+          break;
+        }
+      }
+    })();
+  }, []);
+
+  /** 连接串口：弹出浏览器串口选择器，选中后直接连接。返回 true 表示成功 */
+  const connect = useCallback(async (): Promise<boolean> => {
+    let port: SerialPort;
+    try {
+      port = await navigator.serial.requestPort();
+    } catch {
+      // 用户取消选择
+      return false;
+    }
+    portRef.current = port;
+    setStatus('connecting');
+    try {
+      await port.open(SERIAL_OPTIONS);
+
+      const writer = port.writable!.getWriter();
+      writerRef.current = writer;
+
+      // 启动背景读取循环
+      startReadLoop(port);
+
+      // 注册 MCU 日志回调 (LOG_STRING cmd)
+      const onLogString = (cmdId: number, payload: Uint8Array, _seq: number) => {
+        if (cmdId !== CmdId.LOG_STRING) return;
+        let level = LogLevel.Info;
+        if (payload.length > 0 && payload[0] <= 3) {
+          level = payload[0] as LogLevel;
+        }
+        const text = new TextDecoder().decode(
+          payload.subarray(payload[0] <= 3 ? 1 : 0),
+        ).replace(/\0.*$/, '');
+        if (text.length > 0) {
+          setMcuLogs((prev) => [...prev.slice(-255), { ts: Date.now(), level, source: 'mcu' as const, text }]);
+        }
+      };
+      parserRef.current.onFrame(onLogString);
+
+      // === 校验 MCU 固件 commit ID ===
+      const mcuCommit = await new Promise<string | null>((resolve) => {
+        const timeout = setTimeout(() => resolve(null), 2000);
+        const onCommit = (_cmdId: number, payload: Uint8Array, _s: number) => {
+          clearTimeout(timeout);
+          const hash = new TextDecoder().decode(payload.subarray(0, 7)).replace(/\0.*$/, '');
+          resolve(hash || null);
+        };
+        parserRef.current.onFrame(onCommit);
+
+        // 发送读固件 commit 请求
+        const seq = seqRef.current++;
+        const frame = buildCmdFrame(CmdId.READ_REQUEST, new Uint8Array([ReadRequestType.FirmwareCommit]), seq);
+        writeFrame(frame).catch(() => {
+          clearTimeout(timeout);
+          resolve(null);
+        });
+      });
+
+      if (mcuCommit === null) {
+        addHostLog(LogLevel.Error, '无法获取 MCU 固件版本 (超时)');
+      } else if (mcuCommit !== __COMMIT_ID__) {
+        addHostLog(LogLevel.Error, `固件版本不匹配: MCU=${mcuCommit} App=${__COMMIT_ID__}`);
+        writer.releaseLock();
+        await port.close();
+        setStatus('disconnected');
+        portRef.current = null;
+        writerRef.current = null;
+        return false;
+      } else {
+        addHostLog(LogLevel.Info, `固件版本一致: ${mcuCommit}`);
+      }
+
+      port.addEventListener('disconnect', () => {
+        readLoopAbortRef.current?.abort();
+        readLoopAbortRef.current = null;
+        setStatus('disconnected');
+        portRef.current = null;
+        writerRef.current = null;
+        readerRef.current = null;
+      });
+
+      setStatus('connected');
+      console.log('串口已连接 (921600 8N1)');
+      return true;
+    } catch (e) {
+      console.error('连接失败:', e);
+      setStatus('disconnected');
+      return false;
+    }
+  }, [startReadLoop]);
+
+  /** 断开串口 */
+  const disconnect = useCallback(async () => {
+    try {
+      readLoopAbortRef.current?.abort();
+      readLoopAbortRef.current = null;
+      if (readerRef.current) {
+        try { readerRef.current.releaseLock(); } catch {}
+        readerRef.current = null;
+      }
+      if (writerRef.current) {
+        await writerRef.current.close();
+        writerRef.current = null;
+      }
+      if (portRef.current) {
+        await portRef.current.close();
+        portRef.current = null;
+      }
+    } catch (e) {
+      console.error('断开失败:', e);
+    }
+    setStatus('disconnected');
+    setTxLog([]);
+    setRxLog([]);
+    setTxBytes(0);
+    setRxBytes(0);
+    setMcuLogs([]);
+    setHostLogs([]);
+    // 重置协议解析器
+    parserRef.current = new ConfiguratorParser();
+    seqRef.current = 0;
+    setParserErrors(0);
+  }, []);
+
+  // ---- 通信协议实现 ----
+
+  /** 批量发送全部关节参数 */
+  const sendAllParams = useCallback(
+    async (allValues: Map<string, Map<string, number>>): Promise<boolean> => {
+      if (!writerRef.current) {
+        console.error('串口未连接');
+        return false;
+      }
+
+      try {
+        const config = buildConfigFromMap(allValues);
+        const payload = serializeConfig(config);
+        const seq = seqRef.current++;
+        const frame = buildCmdFrame(CmdId.ALL_CONFIG, payload, seq);
+
+        await writeFrame(frame);
+        console.log('[发送] ALL_CONFIG seq=', seq, 'len=', frame.length);
+        return true;
+      } catch (e) {
+        console.error('发送参数失败:', e);
+        return false;
+      }
+    },
+    [writeFrame],
+  );
+
+  /** 向 MCU 发送读指令并等待响应 */
+  const readAllParams = useCallback(async (): Promise<Map<string, Map<string, number>> | null> => {
+    if (!writerRef.current) {
+      console.error('串口未连接');
+      return null;
+    }
+
+    const parser = parserRef.current;
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        parser.offFrame(handler);
+        console.warn('读取参数超时 (2s)');
+        resolve(null);
+      }, 2000);
+
+      const handler = (cmdId: number, payload: Uint8Array, _seq: number) => {
+        if (cmdId === CmdId.ALL_CONFIG) {
+          clearTimeout(timeout);
+          parser.offFrame(handler);
+          try {
+            const config = parseConfig(payload);
+            const result = configToMap(config);
+            console.log('[接收] ALL_CONFIG 已解析, schemaVersion=', config.schemaVersion);
+            resolve(result);
+          } catch (e) {
+            console.error('解析配置失败:', e);
+            resolve(null);
+          }
+        }
+      };
+
+      parser.onFrame(handler);
+
+      // 发送读配置请求
+      const seq = seqRef.current++;
+      const frame = buildCmdFrame(CmdId.READ_REQUEST, new Uint8Array([ReadRequestType.AllConfig]), seq);
+      writeFrame(frame).catch(() => {
+        clearTimeout(timeout);
+        parser.offFrame(handler);
+        resolve(null);
+      });
+      console.log('[发送] READ_REQUEST(AllConfig) seq=', seq);
+    });
+  }, [writeFrame]);
+
+  return {
+    status,
+    connect,
+    disconnect,
+    sendAllParams,
+    readAllParams,
+    /** TX 字节流日志 */
+    txLog,
+    /** RX 字节流日志 */
+    rxLog,
+    /** 累计发送字节数 */
+    txBytes,
+    /** 累计接收字节数 */
+    rxBytes,
+    /** 协议解析错误计数 */
+    parserErrors,
+    /** MCU 文本日志 (来自 LOG_STRING 帧) */
+    mcuLogs,
+    /** 宿主侧文本日志 */
+    hostLogs,
+    /** 添加宿主侧日志 */
+    addHostLog,
+  };
+}

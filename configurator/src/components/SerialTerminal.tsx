@@ -7,6 +7,8 @@ interface SerialTerminalProps {
   rxLog: ByteLogEntry[]
   txBytes: number
   rxBytes: number
+  /** 协议解析 CRC 错误计数 */
+  parserErrors?: number
 }
 
 function formatHex(data: Uint8Array): string {
@@ -15,7 +17,7 @@ function formatHex(data: Uint8Array): string {
     .join(' ')
 }
 
-function formatTime(ts: number): string {
+export function formatTime(ts: number): string {
   const d = new Date(ts)
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}.${d.getMilliseconds().toString().padStart(3, '0')}`
 }
@@ -38,13 +40,14 @@ function LogColumn({
   }, [log])
 
   return (
-    <Box flex={1} minW={0}>
-      <Text fontSize="xs" fontWeight="semibold" color="gray.500" mb={1.5}>
+    <Box flex={1} minW={0} display="flex" flexDirection="column">
+      <Text fontSize="xs" fontWeight="semibold" color="gray.500" mb={1.5} flexShrink={0}>
         {title}
       </Text>
       <Box
         ref={ref}
-        h="96px"
+        flex={1}
+        minH={0}
         overflowY="auto"
         bg="#1e1e2e"
         borderWidth="1px"
@@ -76,20 +79,13 @@ function LogColumn({
   )
 }
 
-export function SerialTerminal({ txLog, rxLog, txBytes, rxBytes }: SerialTerminalProps) {
+export function SerialTerminal({ txLog, rxLog, txBytes, rxBytes, parserErrors }: SerialTerminalProps) {
   return (
-    <Box
-      borderTopWidth="1px"
-      borderColor="gray.200"
-      bg="white"
-      px={5}
-      py={3}
-      flexShrink={0}
-    >
-      <Flex justify="space-between" align="center" mb={3}>
-        <Text fontSize="sm" fontWeight="semibold" color="gray.700">
+    <Box display="flex" flexDirection="column" flex={1} minH={0} px={5} py={3}>
+      <Flex justify="space-between" align="center" mb={3} flexShrink={0}>
+        {/* <Text fontSize="sm" fontWeight="semibold" color="gray.700">
           Serial Monitor
-        </Text>
+        </Text> */}
         <HStack gap={5}>
           <HStack gap={1.5}>
             <Text fontSize="xs" color="gray.400" fontWeight="medium">
@@ -107,9 +103,19 @@ export function SerialTerminal({ txLog, rxLog, txBytes, rxBytes }: SerialTermina
               {rxBytes.toLocaleString()} B
             </Text>
           </HStack>
+          {parserErrors !== undefined && parserErrors > 0 && (
+            <HStack gap={1.5}>
+              <Text fontSize="xs" color="gray.400" fontWeight="medium">
+                CRC Err
+              </Text>
+              <Text fontSize="xs" color="red.500" fontFamily="mono" fontWeight="semibold">
+                {parserErrors}
+              </Text>
+            </HStack>
+          )}
         </HStack>
       </Flex>
-      <Flex gap={4}>
+      <Flex gap={4} flex={1} minH={0}>
         <LogColumn title="TX" color="#60a5fa" log={txLog} />
         <LogColumn title="RX" color="#4ade80" log={rxLog} />
       </Flex>

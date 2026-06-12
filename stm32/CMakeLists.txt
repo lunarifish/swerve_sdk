@@ -69,7 +69,24 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 # Remove wrong libob.a library dependency when using cpp files
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
+# Get current git commit id
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_ID
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+    RESULT_VARIABLE GIT_RESULT
+)
+if(NOT GIT_RESULT EQUAL 0)
+    set(GIT_COMMIT_ID "unknown")
+endif()
+message(STATUS "Git commit id: ${GIT_COMMIT_ID}")
+
 add_compile_definitions(LIBRM_BYPASS_HAL_ASSERT)
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+    GIT_COMMIT_ID="${GIT_COMMIT_ID}"
+)
 add_subdirectory(libs)
 
 # Add linked libraries

@@ -5,14 +5,17 @@
 #include "main.h"
 #include "fdcan.h"
 #include "usart.h"
+#include "octospi.h"
 #include "spi.h"
 
 #include "bsp/buzzer.hpp"
+#include "bsp/flash_preferences.hpp"
 #include "bsp/led.hpp"
 #include "bsp/vbus_adc.hpp"
 #include "et16s.hpp"
-#include "configurator/schema.hpp"
 #include "host/host.hpp"
+#include "configurator/config_schema.hpp"
+#include "configurator/configurator.hpp"
 
 /**
  * STM32H7的DTCM区域只能被CPU访问，不能被DMA访问，所以需要开一块在DTCM之外的全局数据区域，专门放一些需要被DMA访问的对象
@@ -62,13 +65,16 @@ struct SharedResources {
   rm::device::BMI088 onboard_imu{hspi2, ACC_CS_GPIO_Port, ACC_CS_Pin, GYRO_CS_GPIO_Port, GYRO_CS_Pin};
   rm::modules::MahonyAhrs mahony_ahrs{1000.f};  ///< AHRS算法
 
-  WflyET16s rc{shared_no_dtcm.sbus_serial};     ///< 遥控器
-  rm::device::DeviceManager<5> device_manager;  ///< 设备管理器，用于监测各个设备的在线状态
+  FlashPreferences<PersistableConfigV1> flash_prefs{&hospi2, 0x7FE000};  ///< Flash 配置存储（A/B 双扇区：0x7FE000 / 0x7FF000）
+  WflyET16s rc{shared_no_dtcm.sbus_serial};         ///< 遥控器
+  rm::device::DeviceManager<5> device_manager;      ///< 设备管理器，用于监测各个设备的在线状态
   Host host{comm_can, 0x233};
 
   rm::device::Znsv6T1 press_sensor{no_dtcm->sensor_485_serial, 254};
 
   etl::string<512> system_status;  ///< 系统状态摘要字符串
+
+  Configurator configurator;
 
   float vbus;
 
@@ -102,6 +108,8 @@ struct SharedResources {
     });
 
     buzzer.Begin();
+    configurator.Init();
+    flash_prefs.Begin();
     left_can.SetFilter(0, 0);
     right_can.SetFilter(0, 0);
     comm_can.SetFilter(0, 0);

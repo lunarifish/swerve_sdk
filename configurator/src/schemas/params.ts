@@ -3,28 +3,31 @@
  *
  * 新增参数只需添加条目到 JOINT_SCHEMAS，组件自动渲染。
  * 新增参数类型只需扩展 ParamType 并在 JointCard 中加对应分支。
+ *
+ * 参数定义对齐 MCU 固件 PersistableConfigV1 (config_schema.hpp):
+ *   - pd_kp[5] / pd_kd[5] / max_joint_vel[5] / max_joint_accel[5]
  */
 
 // ---- 基础类型 ----
 
-/** 参数控件类型（可扩展：'dropdown' | 'input' | ...） */
-export type ParamType = 'slider' | 'toggle';
+/** 参数控件类型 */
+export type ParamType = 'spinbox' | 'toggle';
 
 /** 单个参数的描述 */
 export interface ParamDef {
-  /** 协议中使用的 key，如 "kp"、"torque_limit" */
+  /** 协议中使用的 key，与 MCU PersistableConfigV1 字段对应 */
   key: string;
   /** UI 显示名称 */
   label: string;
   /** 控件类型 */
   type: ParamType;
-  /** 滑块最小值 */
+  /** 最小值 */
   min?: number;
-  /** 滑块最大值 */
+  /** 最大值 */
   max?: number;
   /** 步进 */
   step?: number;
-  /** 单位（可选），如 "Nm"、"rad/s" */
+  /** 单位（可选），如 "rad/s"、"rad/s²" */
   unit?: string;
   /** 默认值 */
   defaultValue: number;
@@ -40,59 +43,56 @@ export interface JointSchema {
  * 5 关节机械臂参数定义
  *
  * 关节名来自 URDF: J1, J2, J3, J4, J5
- * (J_END_EFF 是 MoveIt 虚拟末端关节，不参与调参)
  *
- * 默认值参考 joint_limits.yaml 的实测数据。
+ * 默认值严格对应 MCU PersistableConfigV1 初始化值：
+ *   pd_kp  = {25.f, 40.f, 40.f, 13.5f, 9.f}
+ *   pd_kd  = {5.f, 10.f, 10.f, 3.f, 0.5f}
+ *   max_joint_vel  / max_joint_accel = {} (零初始化)
  */
 export const JOINT_SCHEMAS: JointSchema[] = [
   {
     jointName: 'J1',
     params: [
-      { key: 'kp', label: 'Kp', type: 'slider', min: 0, max: 100, step: 0.1, defaultValue: 1.0, unit: '' },
-      { key: 'kd', label: 'Kd', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 0.01, unit: '' },
-      { key: 'torque_limit', label: '力矩限幅', type: 'slider', min: 0, max: 10, step: 0.1, defaultValue: 1.0, unit: 'Nm' },
-      { key: 'max_velocity', label: '最大速度', type: 'slider', min: 0, max: 5, step: 0.01, defaultValue: 2.175, unit: 'rad/s' },
-      { key: 'max_acceleration', label: '最大加速度', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 3.75, unit: 'rad/s²' },
+      { key: 'pd_kp', label: 'Kp', type: 'spinbox', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+      { key: 'pd_kd', label: 'Kd', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0 },
+      { key: 'max_joint_vel', label: '最大速度', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0, unit: 'rad/s' },
+      { key: 'max_joint_accel', label: '最大加速度', type: 'spinbox', min: 0, max: 100, step: 0.01, defaultValue: 0, unit: 'rad/s²' },
     ],
   },
   {
     jointName: 'J2',
     params: [
-      { key: 'kp', label: 'Kp', type: 'slider', min: 0, max: 100, step: 0.1, defaultValue: 1.0, unit: '' },
-      { key: 'kd', label: 'Kd', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 0.01, unit: '' },
-      { key: 'torque_limit', label: '力矩限幅', type: 'slider', min: 0, max: 10, step: 0.1, defaultValue: 1.0, unit: 'Nm' },
-      { key: 'max_velocity', label: '最大速度', type: 'slider', min: 0, max: 5, step: 0.01, defaultValue: 2.175, unit: 'rad/s' },
-      { key: 'max_acceleration', label: '最大加速度', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 1.875, unit: 'rad/s²' },
+      { key: 'pd_kp', label: 'Kp', type: 'spinbox', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+      { key: 'pd_kd', label: 'Kd', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0 },
+      { key: 'max_joint_vel', label: '最大速度', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0, unit: 'rad/s' },
+      { key: 'max_joint_accel', label: '最大加速度', type: 'spinbox', min: 0, max: 100, step: 0.01, defaultValue: 0, unit: 'rad/s²' },
     ],
   },
   {
     jointName: 'J3',
     params: [
-      { key: 'kp', label: 'Kp', type: 'slider', min: 0, max: 100, step: 0.1, defaultValue: 1.0, unit: '' },
-      { key: 'kd', label: 'Kd', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 0.01, unit: '' },
-      { key: 'torque_limit', label: '力矩限幅', type: 'slider', min: 0, max: 10, step: 0.1, defaultValue: 1.0, unit: 'Nm' },
-      { key: 'max_velocity', label: '最大速度', type: 'slider', min: 0, max: 5, step: 0.01, defaultValue: 2.175, unit: 'rad/s' },
-      { key: 'max_acceleration', label: '最大加速度', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 2.5, unit: 'rad/s²' },
+      { key: 'pd_kp', label: 'Kp', type: 'spinbox', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+      { key: 'pd_kd', label: 'Kd', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0 },
+      { key: 'max_joint_vel', label: '最大速度', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0, unit: 'rad/s' },
+      { key: 'max_joint_accel', label: '最大加速度', type: 'spinbox', min: 0, max: 100, step: 0.01, defaultValue: 0, unit: 'rad/s²' },
     ],
   },
   {
     jointName: 'J4',
     params: [
-      { key: 'kp', label: 'Kp', type: 'slider', min: 0, max: 100, step: 0.1, defaultValue: 1.0, unit: '' },
-      { key: 'kd', label: 'Kd', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 0.01, unit: '' },
-      { key: 'torque_limit', label: '力矩限幅', type: 'slider', min: 0, max: 10, step: 0.1, defaultValue: 1.0, unit: 'Nm' },
-      { key: 'max_velocity', label: '最大速度', type: 'slider', min: 0, max: 5, step: 0.01, defaultValue: 2.175, unit: 'rad/s' },
-      { key: 'max_acceleration', label: '最大加速度', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 3.125, unit: 'rad/s²' },
+      { key: 'pd_kp', label: 'Kp', type: 'spinbox', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+      { key: 'pd_kd', label: 'Kd', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0 },
+      { key: 'max_joint_vel', label: '最大速度', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0, unit: 'rad/s' },
+      { key: 'max_joint_accel', label: '最大加速度', type: 'spinbox', min: 0, max: 100, step: 0.01, defaultValue: 0, unit: 'rad/s²' },
     ],
   },
   {
     jointName: 'J5',
     params: [
-      { key: 'kp', label: 'Kp', type: 'slider', min: 0, max: 100, step: 0.1, defaultValue: 1.0, unit: '' },
-      { key: 'kd', label: 'Kd', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 0.01, unit: '' },
-      { key: 'torque_limit', label: '力矩限幅', type: 'slider', min: 0, max: 10, step: 0.1, defaultValue: 1.0, unit: 'Nm' },
-      { key: 'max_velocity', label: '最大速度', type: 'slider', min: 0, max: 5, step: 0.01, defaultValue: 2.61, unit: 'rad/s' },
-      { key: 'max_acceleration', label: '最大加速度', type: 'slider', min: 0, max: 10, step: 0.01, defaultValue: 3.75, unit: 'rad/s²' },
+      { key: 'pd_kp', label: 'Kp', type: 'spinbox', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+      { key: 'pd_kd', label: 'Kd', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0 },
+      { key: 'max_joint_vel', label: '最大速度', type: 'spinbox', min: 0, max: 30, step: 0.01, defaultValue: 0, unit: 'rad/s' },
+      { key: 'max_joint_accel', label: '最大加速度', type: 'spinbox', min: 0, max: 100, step: 0.01, defaultValue: 0, unit: 'rad/s²' },
     ],
   },
 ];

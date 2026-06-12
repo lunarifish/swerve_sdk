@@ -1,0 +1,188 @@
+/**
+ * 配置器串口协议定义 — 单一事实来源
+ *
+ * 对应 MCU 固件:
+ *   - comm_schema.hpp  — 帧格式 / CmdFrame 模板 / CmdId
+ *   - config_schema.hpp — PersistableConfigV1
+ *
+ * 帧布局 (configurator_schema::CmdFrame<PayloadType>):
+ *   ┌──────┬─────────────┬──────┬───────────┬──────────┬───────────┬──────────┐
+ *   │ SOF  │ payload_len │ seq  │ hdr_crc8  │ cmd_id   │ payload   │ crc16    │
+ *   │ 1B   │ 2B LE       │ 1B   │ 1B        │ 2B LE    │ N B       │ 2B LE   │
+ *   └──────┴─────────────┴──────┴───────────┴──────────┴───────────┴──────────┘
+ *
+ * 扩展方式 (v2/v3):
+ *   1. 定义新的 PersistableConfigV2 结构体，schema_version 自动递增
+ *   2. 新增 CmdId 条目 (如 MOTION_CMD = 0x103)
+ *   3. PayloadRegistry 中注册新 cmd → 类型映射
+ */
+
+// ═══════════════════════════════════════════════════════════════
+// 帧常量
+// ═══════════════════════════════════════════════════════════════
+
+/** 帧头 (Start of Frame) */
+export const SOF = 0xa5;
+/** 帧头长度: SOF(1) + payload_len(2) + seq(1) + header_crc8(1) */
+export const HEADER_LEN = 5;
+/** cmd_id 字段长度 */
+export const CMD_ID_LEN = 2;
+/** 帧尾 CRC16 长度 */
+export const CRC16_LEN = 2;
+/** 单帧 payload 最大长度 */
+export const MAX_PAYLOAD_LEN = 128;
+/** 单帧最大总长度 */
+export const MAX_FRAME_LEN =
+  HEADER_LEN + CMD_ID_LEN + MAX_PAYLOAD_LEN + CRC16_LEN; // 137
+
+// ═══════════════════════════════════════════════════════════════
+// 命令码
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 命令码常量 — 等價於 MCU configurator_schema::details::*::kCmdId
+ *
+ * 命名惯例:
+ *   0x0xx — 控制帧 (host↔mcu 握手/状态)
+ *   0x1xx — 数据帧 (payload 承载业务数据)
+ *   0x2xx — 请求帧 (host→mcu 读请求)
+ */
+export const CmdId = {
+  // ---- 0x1xx: 数据帧 ----
+  /** 日志字符串 (MCU → Host) — payload: LogStringPayload */
+  LOG_STRING: 0x100,
+  /** 全部配置数据 (双向) — payload: PersistableConfigV1 */
+  ALL_CONFIG: 0x102,
+  /** MCU 固件 commit ID (MCU → Host) — payload: CommitIdPayload */
+  COMMIT_ID: 0x103,
+  /** 配置写入确认 (MCU → Host) — payload: ConfigWriteAckPayload */
+  CONFIG_WRITE_ACK: 0x104,
+
+  // ---- 0x2xx: 请求帧 ----
+  /** 读请求 (Host → MCU) — payload: ReadRequestPayload */
+  READ_REQUEST: 0x200,
+  /** 重启 MCU (Host → MCU)，payload 为空 */
+  REBOOT_REQUEST: 0x201,
+} as const;
+
+/** 读请求类型 (对应 MCU configurator::details::ReadRequest::Type) */
+export const ReadRequestType = {
+  /** 读取全部配置 (PersistableConfigV1) */
+  AllConfig: 0,
+  /** 读取 MCU 固件 commit ID */
+  FirmwareCommit: 1,
+} as const;
+
+/** 当前协议版本 (对应 PersistableConfigV1::schema_version) */
+export const PROTOCOL_VERSION = 1;
+
+// ═══════════════════════════════════════════════════════════════
+// Payload 类型
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * LogString 载荷 (对应 MCU configurator_schema::details::LogString)
+ *
+ * 内存布局 (LE):
+ *   [0]     level (0=Debug, 1=Info, 2=Warning, 3=Error)
+ *   [1..]   null-terminated ASCII string
+ *
+ * 注: 若仅有字符串无 level 前缀，则默认 Info
+ */
+export interface LogStringPayload {
+  level: number; // 0-3
+  text: string; // null-terminated
+}
+
+/** LogString payload 最大字节数 (对应 MCU details::LogString 内 str 数组大小) */
+export const LOG_STRING_PAYLOAD_LEN = 55; // = 64 - 9
+
+/** CommitId 载荷 (对应 MCU configurator::details::CommitId) — 7 字节 ASCII git hash */
+export interface CommitIdPayload {
+  hash: string;
+}
+
+/** 读请求载荷 (对应 MCU configurator::details::ReadRequest) — 1 字节 type */
+export interface ReadRequestPayload {
+  type: number; // ReadRequestType.AllConfig | FirmwareCommit
+}
+
+/**
+ * 配置写入确认 (对应 MCU configurator::details::ConfigWriteAck, packed)
+ *
+ * 内存布局 (LE):
+ *   [0]       ok (uint8, 0/1)
+ *   [1..55]   str_reason (null-terminated ASCII)
+ *
+ * 总长: 56 字节 (packed)
+ */
+export interface ConfigWriteAckPayload {
+  ok: boolean;
+  reason: string;
+}
+export const CONFIG_WRITE_ACK_LEN = 56; // = 1 + 55
+
+/**
+ * 持久化配置载荷 (对应 MCU configurator_schema::details::AllConfig)
+ *
+ * 其 payload 为 PersistableConfigPayload，由 `PersistableConfigVx` 组成。
+ * 当 schema_version 变更时，反序列化需根据 version 选择对应的解析逻辑。
+ */
+
+/** PersistableConfigV1 序列化字节长度: uint32(4) + 4 × float32[5](20) = 84 */
+export const CONFIG_SERIALIZED_LEN = 84;
+
+/**
+ * PersistableConfigV1 (对应 MCU config_schema.hpp PersistableConfigV1, packed)
+ *
+ * 内存布局 (LE):
+ *   [0..3]   schema_version (uint32)
+ *   [4..23]  pd_kp[5]  (5×float32)
+ *   [24..43] pd_kd[5]  (5×float32)
+ *   [44..63] max_joint_vel[5]  (5×float32)
+ *   [64..83] max_joint_accel[5] (5×float32)
+ */
+export interface PersistableConfigV1 {
+  schemaVersion: number; // uint32 LE
+  pdKp: Float32Array; // float32[5]
+  pdKd: Float32Array; // float32[5]
+  maxJointVel: Float32Array; // float32[5]
+  maxJointAccel: Float32Array; // float32[5]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Payload 注册表 — 可为未来的协议版本扩展
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * CmdId → Payload 类型/序列化信息 映射
+ *
+ * 未来 v2 时:
+ *   protocol_v2.ts 中定义新类型，覆盖/扩展此注册表即可。
+ */
+export interface PayloadMeta {
+  /** 固定字节长度 (0 = 变长) */
+  fixedLen: number;
+}
+
+export const PAYLOAD_REGISTRY: Record<number, PayloadMeta> = {
+  [CmdId.LOG_STRING]: { fixedLen: 0 },
+  [CmdId.ALL_CONFIG]: { fixedLen: CONFIG_SERIALIZED_LEN },
+  [CmdId.COMMIT_ID]: { fixedLen: 7 },
+  [CmdId.CONFIG_WRITE_ACK]: { fixedLen: CONFIG_WRITE_ACK_LEN },
+  [CmdId.READ_REQUEST]: { fixedLen: 1 },
+  [CmdId.REBOOT_REQUEST]: { fixedLen: 0 },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 联合类型 — 便于 callback 中按照 cmdId 分发
+// ═══════════════════════════════════════════════════════════════
+
+/** 所有已知的 payload 类型 (未来扩展时追加) */
+export type KnownPayload =
+  | { cmdId: typeof CmdId.LOG_STRING; payload: LogStringPayload }
+  | { cmdId: typeof CmdId.ALL_CONFIG; payload: PersistableConfigV1 }
+  | { cmdId: typeof CmdId.COMMIT_ID; payload: CommitIdPayload }
+  | { cmdId: typeof CmdId.CONFIG_WRITE_ACK; payload: ConfigWriteAckPayload }
+  | { cmdId: typeof CmdId.READ_REQUEST; payload: ReadRequestPayload }
+  | { cmdId: typeof CmdId.REBOOT_REQUEST; payload: null };
