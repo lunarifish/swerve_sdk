@@ -61,12 +61,25 @@ class PressureSensorData:
     pressure: float
 
 
+@dataclass
+class SensorMisc1:
+    """传感器杂项数据帧 (offset=7).
+
+    Attributes:
+        motor_coil_temp: 5 个电机的线圈温度 (°C), uint8.
+        motor_mos_temp:  5 个电机的 MOS 管温度 (°C), uint8.
+    """
+    motor_coil_temp: tuple[int, int, int, int, int]
+    motor_mos_temp: tuple[int, int, int, int, int]
+
+
 # ---------------------------------------------------------------------------
 # 帧 ID 偏移量（与下位机 kFrameIdOffset 对齐）
 # ---------------------------------------------------------------------------
 _OFFSET_SYSTEM_STATUS = 1
 _OFFSET_JOINT_STATE = 2
 _OFFSET_PRESSURE = 3
+_OFFSET_SENSOR_MISC1 = 7
 
 
 class RxDaemon:
@@ -104,6 +117,7 @@ class RxDaemon:
         self._system_status: Optional[SystemStatus] = None
         self._joint_state: Optional[JointState] = None
         self._pressure: Optional[PressureSensorData] = None
+        self._sensor_misc1: Optional[SensorMisc1] = None
         self._lock = threading.Lock()
 
         self._is_online: bool = False
@@ -155,6 +169,15 @@ class RxDaemon:
         """解析 PressureSensorData 帧 (4 字节 packed)."""
         (p,) = struct.unpack("<f", data[:4])
         return PressureSensorData(pressure=p)
+
+    @staticmethod
+    def _parse_sensor_misc1(data: bytes) -> SensorMisc1:
+        """解析 SensorDataMisc1 帧 (64 字节 packed)."""
+        values = struct.unpack("<10B", data[:10])
+        return SensorMisc1(
+            motor_coil_temp=values[0:5],   # type: ignore[arg-type]
+            motor_mos_temp=values[5:10],   # type: ignore[arg-type]
+        )
 
     def _fire_online_callbacks(self, online: bool) -> None:
         """在锁外触发所有在线状态变更回调。"""
@@ -219,6 +242,16 @@ class RxDaemon:
                     if not was_online:
                         self._fire_online_callbacks(True)
 
+                elif offset == _OFFSET_SENSOR_MISC1:
+                    parsed = self._parse_sensor_misc1(data)
+                    with self._lock:
+                        self._sensor_misc1 = parsed
+                        self._last_msg_time = now
+                        was_online = self._is_online
+                        self._is_online = True
+                    if not was_online:
+                        self._fire_online_callbacks(True)
+
             except (can.CanError, OSError, struct.error):
                 continue
 
@@ -237,6 +270,11 @@ class RxDaemon:
         """获取最新压力数据，无数据时返回None."""
         with self._lock:
             return self._pressure
+
+    def get_sensor_misc1(self) -> Optional[SensorMisc1]:
+        """获取最新传感器杂项数据（电机线圈/MOS温度），无数据时返回None."""
+        with self._lock:
+            return self._sensor_misc1
 
     def is_online(self) -> bool:
         """返回机械臂是否在线（在watchdog_timeout内收到过有效帧）."""

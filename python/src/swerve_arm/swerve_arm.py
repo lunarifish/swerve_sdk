@@ -11,7 +11,7 @@ from typing import Optional
 import can
 
 from .ik_solver import IKSolver
-from .rx_daemon import JointState, PressureSensorData, RxDaemon, SystemStatus
+from .rx_daemon import JointState, PressureSensorData, RxDaemon, SensorMisc1, SystemStatus
 
 
 class ControlMode:
@@ -207,6 +207,10 @@ class SwerveArm:
     def get_pressure(self) -> Optional[PressureSensorData]:
         """读取最新压力传感器数据."""
         return self._rx.get_pressure()
+
+    def get_sensor_misc1(self) -> Optional[SensorMisc1]:
+        """读取最新传感器杂项数据（包含：电机线圈/MOS温度）."""
+        return self._rx.get_sensor_misc1()
 
     # ------------------------------------------------------------------
     # 在线监测

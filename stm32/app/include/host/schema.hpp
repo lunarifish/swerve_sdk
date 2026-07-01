@@ -6,6 +6,8 @@
 
 namespace host_schema {
 
+constexpr static uint16_t kBaseFrameId = 0x233;
+
 //////////////////
 /// ARM TO HOST
 //////////////////
@@ -49,6 +51,14 @@ ETL_PACKED_STRUCT(PressureSensorData) {
   float pressure;  ///< 压力测量值，单位N
 };
 static_assert(sizeof(PressureSensorData) <= 64);
+
+ETL_PACKED_STRUCT(SensorDataMisc1) {
+  constexpr static uint16_t kFrameIdOffset = 7;
+  uint8_t motor_coil_temp[5];
+  uint8_t motor_mos_temp[5];
+  uint8_t resv[64 - 10];
+};
+static_assert(sizeof(SensorDataMisc1) <= 64);
 
 //////////////////
 /// HOST TO ARM

@@ -36,7 +36,8 @@ void FastIoLoop150hz() {
       ret.vbus = shared_no_dtcm.vbus_adc.vbus();
       return ret;
     }();
-    shared.comm_can.Write(0x234, reinterpret_cast<const uint8_t *>(&ss), sizeof(ss));
+    shared.comm_can.Write(host_schema::kBaseFrameId + ss.kFrameIdOffset, reinterpret_cast<const uint8_t *>(&ss),
+                          sizeof(ss));
   }
   {
     const auto js = [&] {
@@ -51,7 +52,26 @@ void FastIoLoop150hz() {
       }
       return ret;
     }();
-    shared.comm_can.Write(0x235, reinterpret_cast<const uint8_t *>(&js), sizeof(js));
+    shared.comm_can.Write(host_schema::kBaseFrameId + js.kFrameIdOffset, reinterpret_cast<const uint8_t *>(&js),
+                          sizeof(js));
+  }
+  {
+    const auto sdm = [&] {
+      host_schema::SensorDataMisc1 ret;
+      ret.motor_coil_temp[0] = arm->resources.actuator.j1.coil_temperature();
+      ret.motor_mos_temp[0] = arm->resources.actuator.j1.mos_temperature();
+      ret.motor_coil_temp[1] = arm->resources.actuator.j2.coil_temperature();
+      ret.motor_mos_temp[1] = arm->resources.actuator.j2.mos_temperature();
+      ret.motor_coil_temp[2] = arm->resources.actuator.j3.coil_temperature();
+      ret.motor_mos_temp[2] = arm->resources.actuator.j3.mos_temperature();
+      ret.motor_coil_temp[3] = arm->resources.actuator.j4.coil_temperature();
+      ret.motor_mos_temp[3] = arm->resources.actuator.j4.mos_temperature();
+      ret.motor_coil_temp[4] = arm->resources.actuator.j5.coil_temperature();
+      ret.motor_mos_temp[4] = arm->resources.actuator.j5.mos_temperature();
+      return ret;
+    }();
+    shared.comm_can.Write(host_schema::kBaseFrameId + sdm.kFrameIdOffset, reinterpret_cast<const uint8_t *>(&sdm),
+                          sizeof(sdm));
   }
 }
 

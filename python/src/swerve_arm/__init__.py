@@ -3,6 +3,7 @@ from .rx_daemon import (
     JointState,
     PressureSensorData,
     RxDaemon,
+    SensorMisc1,
     SystemStatus,
 )
 from .swerve_arm import (
@@ -18,6 +19,7 @@ __all__ = [
     "JointState",
     "PressureSensorData",
     "RxDaemon",
+    "SensorMisc1",
     "SwerveArm",
     "SystemStatus",
 ]
