@@ -43,6 +43,7 @@ class ArmController {
   }
 
   void GoTo(const std::array<float, 5> &target_positions) {
+    mit_mode_active_ = false;  // GoTo 退出 MIT 模式
     for (size_t i = 0; i < 5; ++i) {
       trajectory_limiter_[i].SetTarget(
           std::clamp(target_positions[i], joint_limits_[i].first, joint_limits_[i].second));
@@ -50,26 +51,52 @@ class ArmController {
     UpdateStatus();
   }
 
+  /// @brief 上位机 MIT 直通指令，position 经 trajectory limiter 平滑，velocity/torque 直接透传
+  void SetRawMitCommand(const std::array<float, 5> &positions, const std::array<float, 5> &velocities,
+                        const std::array<float, 5> &torques) {
+    mit_mode_active_ = true;
+    for (size_t i = 0; i < 5; ++i) {
+      trajectory_limiter_[i].SetTarget(
+          std::clamp(positions[i], joint_limits_[i].first, joint_limits_[i].second));
+    }
+    mit_velocities_ = velocities;
+    mit_torques_ = torques;
+    UpdateStatus();
+  }
+
   void Update(const std::array<float, 5> &current_positions, const std::array<float, 5> &current_velocities,
               Eigen::Vector3f imu_acc, float dt = 1.f) {
     current_positions_ = current_positions;
 
+    // position 始终从 trajectory limiter 获取（MIT 模式下 limiter 仍会平滑插值）
     for (size_t i = 0; i < 5; ++i) {
       trajectory_limiter_[i].Update(dt);
       output_.positions[i] = trajectory_limiter_[i].current_position();
-      output_.velocities[i] = 0.f;
-      output_.efforts[i] = 0.f;
     }
 
-    const float acc_x = acc_lpf_[0].apply(imu_acc[0]);
-    const float acc_y = acc_lpf_[1].apply(imu_acc[1]);
-    const float acc_z = acc_lpf_[2].apply(imu_acc[2]);
+    if (mit_mode_active_) {
+      // MIT 模式：velocity/torque 由上位机直接指定，跳过动力学前馈
+      for (size_t i = 0; i < 5; ++i) {
+        output_.velocities[i] = mit_velocities_[i];
+        output_.efforts[i] = mit_torques_[i];
+      }
+    } else {
+      // 普通模式：velocity 清零，torque 由动力学前馈计算
+      for (size_t i = 0; i < 5; ++i) {
+        output_.velocities[i] = 0.f;
+        output_.efforts[i] = 0.f;
+      }
 
-    // 对j1 j2 j3叠加动力学前馈力矩
-    const auto acc_comp_efforts = dynamics_.Compensate(
-        {current_positions[0], current_positions[1], current_positions[2]}, {acc_x, acc_y, acc_z});
-    for (int i = 0; i < 3; ++i) {
-      output_.efforts[i] += acc_comp_efforts(i);
+      const float acc_x = acc_lpf_[0].apply(imu_acc[0]);
+      const float acc_y = acc_lpf_[1].apply(imu_acc[1]);
+      const float acc_z = acc_lpf_[2].apply(imu_acc[2]);
+
+      // 对j1 j2 j3叠加动力学前馈力矩
+      const auto acc_comp_efforts = dynamics_.Compensate(
+          {current_positions[0], current_positions[1], current_positions[2]}, {acc_x, acc_y, acc_z});
+      for (int i = 0; i < 3; ++i) {
+        output_.efforts[i] += acc_comp_efforts(i);
+      }
     }
 
     UpdateStatus();
@@ -98,6 +125,9 @@ class ArmController {
       status_ = kIdle;
     }
   }
+
+  /// @brief 退出 MIT 直通模式，恢复正常的重力补偿/动力学前馈
+  void ForceExitMitMode() { mit_mode_active_ = false; }
 
   const auto &joint_limits() { return joint_limits_; }
   [[nodiscard]] const auto &current_positions() const { return current_positions_; }
@@ -148,4 +178,8 @@ class ArmController {
   rm::modules::LowPassFilter2p<float> acc_lpf_[3];
   Status status_{kIdle};
   int fault_counter_{0};
+
+  bool mit_mode_active_{false};
+  std::array<float, 5> mit_velocities_{};
+  std::array<float, 5> mit_torques_{};
 };

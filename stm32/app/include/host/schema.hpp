@@ -88,4 +88,13 @@ ETL_PACKED_STRUCT(JointCtrlCommand) {
 };
 static_assert(sizeof(JointCtrlCommand) <= 64);
 
+/// @brief MIT命令
+ETL_PACKED_STRUCT(MitCtrlCommand) {
+  constexpr static uint16_t kFrameIdOffset = 8;
+  float position[5];
+  float velocity[5];
+  float torque[5];
+};
+static_assert(sizeof(MitCtrlCommand) <= 64);
+
 }  // namespace host_schema

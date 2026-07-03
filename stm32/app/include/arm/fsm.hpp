@@ -26,6 +26,7 @@ struct EventId {
     kEnableCommand,
     kModeCtrlCommand,
     kJointCtrlCommand,
+    kMitCtrlCommand,
   };
 };
 
@@ -80,6 +81,12 @@ struct ModeCtrlCommand : etl::message<EventId::kModeCtrlCommand>, host_schema::M
 struct JointCtrlCommand : etl::message<EventId::kJointCtrlCommand>, host_schema::JointCtrlCommand {
   JointCtrlCommand() : host_schema::JointCtrlCommand{} {}
   explicit JointCtrlCommand(host_schema::JointCtrlCommand ec) : host_schema::JointCtrlCommand({ec}) {}
+};
+
+/*******************************************/
+struct MitCtrlCommand : etl::message<EventId::kMitCtrlCommand>, host_schema::MitCtrlCommand {
+  MitCtrlCommand() : host_schema::MitCtrlCommand{} {}
+  explicit MitCtrlCommand(host_schema::MitCtrlCommand mc) : host_schema::MitCtrlCommand({mc}) {}
 };
 }  // namespace event
 
@@ -198,6 +205,7 @@ struct FreeMove : etl::fsm_state<Arm, FreeMove, StateId::kFreeMove,  //
     auto &shared = SharedResources::GetInstance();
     auto &resources = get_fsm_context().resources();
 
+    resources.controller.ForceExitMitMode();  ///< 强制退出MIT模式，恢复重力补偿
     shared.buzzer_controller.Play<rm::modules::buzzer_melody::Beeps<1>>();
     resources.actuator.SetEnable(true);
     return No_State_Change;
@@ -325,7 +333,8 @@ struct Idle : etl::fsm_state<Arm, Idle, StateId::kIdle,  //
                              event::ActionSequence,      //
                              event::EnableCommand,       //
                              event::ModeCtrlCommand,     //
-                             event::JointCtrlCommand> {
+                             event::JointCtrlCommand,    //
+                             event::MitCtrlCommand> {
   ACCEPT_MODE_SWITCH();
   IGNORE_UNINTEREST_EVENT();
   ENTER_STATE {
@@ -383,6 +392,15 @@ struct Idle : etl::fsm_state<Arm, Idle, StateId::kIdle,  //
     resources.controller.GoTo(target_pos);
     return StateId::kExecuting;
   }
+  REACT(event::MitCtrlCommand) {
+    auto &resources = get_fsm_context().resources();
+
+    const std::array<float, 5> pos{e.position[0], e.position[1], e.position[2], e.position[3], e.position[4]};
+    const std::array<float, 5> vel{e.velocity[0], e.velocity[1], e.velocity[2], e.velocity[3], e.velocity[4]};
+    const std::array<float, 5> tor{e.torque[0], e.torque[1], e.torque[2], e.torque[3], e.torque[4]};
+    resources.controller.SetRawMitCommand(pos, vel, tor);
+    return StateId::kExecuting;
+  }
 };
 
 /*******************************************/
@@ -391,7 +409,8 @@ struct Executing : etl::fsm_state<Arm, Executing, StateId::kExecuting,  //
                                   event::ForceModeSwitch,               //
                                   event::EnableCommand,                 //
                                   event::ModeCtrlCommand,               //
-                                  event::JointCtrlCommand> {
+                                  event::JointCtrlCommand,              //
+                                  event::MitCtrlCommand> {
   ACCEPT_MODE_SWITCH();
   IGNORE_UNINTEREST_EVENT();
   ENTER_STATE {
@@ -454,6 +473,15 @@ struct Executing : etl::fsm_state<Arm, Executing, StateId::kExecuting,  //
         e.position[0], e.position[1], e.position[2], e.position[3], e.position[4],
     };
     resources.controller.GoTo(target_pos);
+    return No_State_Change;
+  }
+  REACT(event::MitCtrlCommand) {
+    auto &resources = get_fsm_context().resources();
+
+    const std::array<float, 5> pos{e.position[0], e.position[1], e.position[2], e.position[3], e.position[4]};
+    const std::array<float, 5> vel{e.velocity[0], e.velocity[1], e.velocity[2], e.velocity[3], e.velocity[4]};
+    const std::array<float, 5> tor{e.torque[0], e.torque[1], e.torque[2], e.torque[3], e.torque[4]};
+    resources.controller.SetRawMitCommand(pos, vel, tor);
     return No_State_Change;
   }
 

@@ -17,6 +17,8 @@ struct __attribute__((packed)) PersistableConfigV1 {
   // bool reverse[5]{false, true, true, false, false};
 };
 
+using PersistableConfig = PersistableConfigV1;
+
 inline bool Validate(const PersistableConfigV1 &c) {
   if (c.schema_version != 1) return false;
   for (int i = 0; i < 5; ++i) {

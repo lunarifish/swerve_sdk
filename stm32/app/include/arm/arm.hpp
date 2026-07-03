@@ -35,6 +35,7 @@ struct Arm {
   std::atomic<bool> enable_cmd_pending_{false};
   std::atomic<bool> mode_ctrl_cmd_pending_{false};
   std::atomic<bool> joint_ctrl_cmd_pending_{false};
+  std::atomic<bool> mit_ctrl_cmd_pending_{false};
 
   void ProcessDeferredEvents() {
     auto &shared = SharedResources::GetInstance();
@@ -46,6 +47,9 @@ struct Arm {
     }
     if (joint_ctrl_cmd_pending_.exchange(false, std::memory_order_acquire)) {
       fsm.receive(fsm_arm::event::JointCtrlCommand{shared.host.rx_data().joint_ctrl_command});
+    }
+    if (mit_ctrl_cmd_pending_.exchange(false, std::memory_order_acquire)) {
+      fsm.receive(fsm_arm::event::MitCtrlCommand{shared.host.rx_data().mit_ctrl_command});
     }
   }
 
@@ -92,6 +96,8 @@ struct Arm {
         [&] { mode_ctrl_cmd_pending_.store(true, std::memory_order_release); });
     shared.host.OnJointCtrlCommand(
         [&] { joint_ctrl_cmd_pending_.store(true, std::memory_order_release); });
+    shared.host.OnMitCtrlCommand(
+        [&] { mit_ctrl_cmd_pending_.store(true, std::memory_order_release); });
 
     fsm.set_states(state_list_, std::size(state_list_));
     fsm.start();

@@ -24,6 +24,7 @@ class ControlMode:
 _OFFSET_ENABLE = 4
 _OFFSET_MODE_CTRL = 5
 _OFFSET_JOINT_CTRL = 6
+_OFFSET_MIT_CTRL = 8
 
 
 class EndEffectorPose:
@@ -184,7 +185,16 @@ class SwerveArm:
         self._send_frame(_OFFSET_MODE_CTRL, payload)
 
     def joint_ctrl(self, positions: list[float]) -> None:
-        """下发 5 轴关节目标角度，驱动机械臂运动。
+        """下发 5 轴关节目标角度。
+
+        关节角和MIT两种指令可以同时使用，
+        切换时位置路径保持连续，速度和力矩命令会瞬时切换到新指令指定的值。
+
+        ``joint_ctrl()`` 只下发目标位置，速度、力矩由机械臂内置的动力学算法自动计算，
+        用于常规场景。
+
+        ``mit_ctrl()`` 允许上位机同时指定位置、速度、力矩三个维度的
+        目标值，用于上位机运行自己的轨迹规划器、阻抗/导纳控制等需要精细力控的场景。
 
         Args:
             positions: 5 个关节目标角度 [j1..j5]，单位 rad.
@@ -193,6 +203,35 @@ class SwerveArm:
             raise ValueError(f"需要 5 个关节角度，收到 {len(positions)} 个")
         payload = struct.pack("<5f", *positions)
         self._send_frame(_OFFSET_JOINT_CTRL, payload)
+
+    def mit_ctrl(
+        self,
+        positions: list[float],
+        velocities: list[float],
+        torques: list[float],
+    ) -> None:
+        """类 MIT 模式控制，下发 5 轴关节目标角度、速度和前馈力矩。
+
+        关节角和MIT两种指令可以同时使用，
+        切换时位置路径保持连续，速度和力矩命令会瞬时切换到新指令指定的值。
+
+        ``joint_ctrl()`` 只下发目标位置，速度、力矩由机械臂内置的动力学算法自动计算，
+        用于常规场景。
+
+        ``mit_ctrl()`` 允许上位机同时指定位置、速度、力矩三个维度的
+        目标值，用于上位机运行自己的轨迹规划器、阻抗/导纳控制等需要精细力控的场景。
+
+
+        Args:
+            positions:  5 个关节目标角度 [j1..j5]，单位 rad.
+            velocities: 5 个关节速度前馈 [j1..j5]，单位 rad/s.
+            torques:    5 个关节力矩前馈 [j1..j5]，单位 N·m.
+        """
+        for name, vals in [("positions", positions), ("velocities", velocities), ("torques", torques)]:
+            if len(vals) != 5:
+                raise ValueError(f"{name} 需要 5 个值，收到 {len(vals)} 个")
+        payload = struct.pack("<15f", *positions, *velocities, *torques)
+        self._send_frame(_OFFSET_MIT_CTRL, payload)
 
     # ------------------------------------------------------------------
     # 状态读取

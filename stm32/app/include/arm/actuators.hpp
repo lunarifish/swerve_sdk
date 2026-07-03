@@ -45,28 +45,28 @@ class Actuator {
     const auto& pd_config = pd_params_;
     if (apply_position) {
       j1.SetMitCommand(calibrators[0].LogicalToReal(output.positions[0]),                  //
-                       0,                                                                  //
+                       calibrators[0].reverse() ? -output.velocities[0] : output.velocities[0],                                                                  //
                        calibrators[0].reverse() ? -output.efforts[0] : output.efforts[0],  //
                        pd_config[0].kp,                                                    //
                        pd_config[0].kd);
       j2.SetMitCommand(calibrators[1].LogicalToReal(output.positions[1]),                  //
-                       0,                                                                  //
+                       calibrators[1].reverse() ? -output.velocities[1] : output.velocities[1],                                                                  //
                        calibrators[1].reverse() ? -output.efforts[1] : output.efforts[1],  //
                        pd_config[1].kp,                                                    //
                        pd_config[1].kd);
       j3.SetMitCommand(calibrators[2].LogicalToReal(output.positions[2]),                  //
-                       0,                                                                  //
+                       calibrators[2].reverse() ? -output.velocities[2] : output.velocities[2],                                                                  //
                        calibrators[2].reverse() ? -output.efforts[2] : output.efforts[2],  //
                        pd_config[2].kp,                                                    //
                        pd_config[2].kd);
       j4.SetMitCommand(calibrators[3].LogicalToReal(output.positions[3]),  //
-                       0,                                                  //
-                       0.f,                                                //
+                       calibrators[3].reverse() ? -output.velocities[3] : output.velocities[3],                                                  //
+                       calibrators[3].reverse() ? -output.efforts[3] : output.efforts[3],  //
                        pd_config[3].kp,                                    //
                        pd_config[3].kd);
       j5.SetMitCommand(calibrators[4].LogicalToReal(output.positions[4]),  //
-                       0,                                                  //
-                       0.f,                                                //
+                       calibrators[4].reverse() ? -output.velocities[4] : output.velocities[4],                                                  //
+                       calibrators[4].reverse() ? -output.efforts[4] : output.efforts[4],  //
                        pd_config[4].kp,                                    //
                        pd_config[4].kd);
     } else {

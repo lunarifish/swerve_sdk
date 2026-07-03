@@ -25,7 +25,7 @@ ETL_PACKED_STRUCT(LogString) {
 ETL_PACKED_STRUCT(AllConfig) {
   constexpr static uint16_t kCmdId = 0x102;
 
-  PersistableConfigV1 config;
+  PersistableConfig config;
 };
 ETL_PACKED_STRUCT(CommitId) {
   constexpr static uint16_t kCmdId = 0x103;

@@ -13,7 +13,8 @@ class Host : rm::device::CanDevice {
   explicit Host(rm::hal::CanInterface &can, uint16_t base_frame_id)
       : CanDevice{can, base_frame_id + host_schema::EnableCommand::kFrameIdOffset,
                   base_frame_id + host_schema::ModeCtrlCommand::kFrameIdOffset,
-                  base_frame_id + host_schema::JointCtrlCommand::kFrameIdOffset},
+                  base_frame_id + host_schema::JointCtrlCommand::kFrameIdOffset,
+                  base_frame_id + host_schema::MitCtrlCommand::kFrameIdOffset},
         base_frame_id_(base_frame_id) {}
 
   void RxCallback(const rm::hal::CanFrame *msg) override {
@@ -39,6 +40,13 @@ class Host : rm::device::CanDevice {
         }
         break;
       }
+      case host_schema::MitCtrlCommand::kFrameIdOffset: {
+        std::memcpy(&rx_data_.mit_ctrl_command, msg, sizeof(host_schema::MitCtrlCommand));
+        if (rx_callbacks_.contains(host_schema::MitCtrlCommand::kFrameIdOffset)) {
+          rx_callbacks_[host_schema::MitCtrlCommand::kFrameIdOffset]();
+        }
+        break;
+      }
       default:
         break;
     }
@@ -53,16 +61,20 @@ class Host : rm::device::CanDevice {
   void OnJointCtrlCommand(Callback cb) {
     rx_callbacks_.insert({host_schema::JointCtrlCommand::kFrameIdOffset, std::move(cb)});
   }
+  void OnMitCtrlCommand(Callback cb) {
+    rx_callbacks_.insert({host_schema::MitCtrlCommand::kFrameIdOffset, std::move(cb)});
+  }
 
   [[nodiscard]] const auto &rx_data() const { return rx_data_; }
 
  protected:
   uint16_t base_frame_id_{};
-  etl::unordered_map<uint16_t, Callback, 5> rx_callbacks_;
+  etl::unordered_map<uint16_t, Callback, 6> rx_callbacks_;
 
   struct {
     host_schema::EnableCommand enable_command{};
     host_schema::ModeCtrlCommand mode_ctrl_command{};
     host_schema::JointCtrlCommand joint_ctrl_command{};
+    host_schema::MitCtrlCommand mit_ctrl_command{};
   } rx_data_{};
 };
