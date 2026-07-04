@@ -10,6 +10,7 @@ from typing import Optional
 
 import can
 
+from .calibrator import MotorCalibrator
 from .ik_solver import IKSolver
 from .rx_daemon import JointState, PressureSensorData, RxDaemon, SensorMisc1, SystemStatus
 
@@ -121,6 +122,9 @@ class SwerveArm:
             watchdog_timeout=watchdog_timeout,
         )
 
+        # 坐标标定器 —— 维护用户零点偏移，使 SDK 侧坐标可重新归零
+        self.calibrator = MotorCalibrator()
+
         # 加载URDF模型
         self._pin_model: object
         self._pin_data: object
@@ -150,6 +154,44 @@ class SwerveArm:
         else:
             self._end_eff_frame_id = self._pin_model.njoints - 2
 
+    # ------------------------------------------------------------------
+    ### 用户零点管理
+    ################
+    def set_zero(self) -> None:
+        """将当前关节位置设为零点。
+
+        注意：纯软件实现，偏移量仅在内存中，SDK 重启后丢失。
+
+        调用后 `get_joint_state().position` 全部为 (0, 0, 0, 0, 0)，
+        后续所有控制指令的坐标均相对于新的零点。
+        """
+        js = self._rx.get_joint_state()
+        if js is None:
+            raise RuntimeError("无关节数据，无法设零")
+        self.calibrator.set_zero(list(js.position))
+
+    def clear_zero(self) -> None:
+        """清除用户零点偏移，恢复为固件原始坐标。
+
+        注意：纯软件实现，SDK 重启后零点丢失。
+        """
+        self.calibrator.clear()
+
+    def set_zero_offset(self, offsets: list[float]) -> None:
+        """直接设置零点偏移量（纯软件，不持久化保存）。
+
+        Args:
+            offsets: 5 个偏移值 [o1..o5]，单位 rad。
+        """
+        self.calibrator.set_offset(offsets)
+
+    def get_zero_offset(self) -> list[float]:
+        """获取当前零点偏移量。"""
+        return self.calibrator.get_offset()
+
+    # ------------------------------------------------------------------
+    ### CAN通信
+    ################
     def _send_frame(self, offset: int, payload: bytes) -> None:
         """发送一帧 CAN FD 数据."""
         frame_id = self._base_frame_id + offset
@@ -197,11 +239,11 @@ class SwerveArm:
         目标值，用于上位机运行自己的轨迹规划器、阻抗/导纳控制等需要精细力控的场景。
 
         Args:
-            positions: 5 个关节目标角度 [j1..j5]，单位 rad.
+            positions: 5 个关节目标角度 [j1..j5]，单位 rad（用户坐标）。
         """
         if len(positions) != 5:
             raise ValueError(f"需要 5 个关节角度，收到 {len(positions)} 个")
-        payload = struct.pack("<5f", *positions)
+        payload = struct.pack("<5f", *self.calibrator.user_to_logical(positions))
         self._send_frame(_OFFSET_JOINT_CTRL, payload)
 
     def mit_ctrl(
@@ -230,14 +272,22 @@ class SwerveArm:
         for name, vals in [("positions", positions), ("velocities", velocities), ("torques", torques)]:
             if len(vals) != 5:
                 raise ValueError(f"{name} 需要 5 个值，收到 {len(vals)} 个")
-        payload = struct.pack("<15f", *positions, *velocities, *torques)
+        # 仅 position 需要坐标转换，velocity/torque 不受零偏影响
+        payload = struct.pack("<15f", *self.calibrator.user_to_logical(positions), *velocities, *torques)
         self._send_frame(_OFFSET_MIT_CTRL, payload)
 
     # ------------------------------------------------------------------
     # 状态读取
     def get_joint_state(self) -> Optional[JointState]:
-        """读取最新关节状态（角度/速度/力矩）."""
-        return self._rx.get_joint_state()
+        """读取最新关节状态（角度/速度/力矩），返回用户坐标。"""
+        js = self._rx.get_joint_state()
+        if js is None:
+            return None
+        return JointState(
+            position=self.calibrator.logical_to_user(list(js.position)),
+            velocity=js.velocity,
+            effort=js.effort,
+        )
 
     def get_system_status(self) -> Optional[SystemStatus]:
         """读取最新系统状态."""
@@ -278,6 +328,7 @@ class SwerveArm:
             raise RuntimeError("无关节数据，无法计算末端位姿")
 
         q = pin.neutral(self._pin_model)
+        # FK 使用逻辑坐标（原始固件坐标）
         q[:5] = js.position
 
         pin.forwardKinematics(self._pin_model, self._pin_data, q)
